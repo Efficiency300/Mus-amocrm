@@ -10,7 +10,7 @@ from utils.JsonDataBase import JSONDatabase
 from pathlib import Path
 from typing import Dict, List, Union, Optional
 from utils.logger import setup_logger
-from services.llm_service import MainLlmService
+from services.llm_service import MainTread
 
 logger = setup_logger("message_buffer")
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,6 +26,8 @@ class BufferManager:
         self.photo_service = PhotoService()
         self.stt_service = STTService()
         self.lead_manager = LeadManager()
+        self.main_treads = {}  # Добавляем словарь для переиспользования MainTread
+
 
     async def add_to_buffer(self, chat_id: str, data: Union[Dict[str, str], str]) -> None:
         self.user_buffers[chat_id].append(data)
@@ -59,35 +61,35 @@ class BufferManager:
 
         return "\n".join(processed_text_parts), image_description, transcribed_text
 
-    async def process_target_audience(self, chat_id: str, entity_id: str, talk_id: str, current_time: int , client_lead_id: str) -> Optional[dict]:
+    async def process_target_audience(self, chat_id: str, entity_id: str, talk_id: str, current_time: int,
+                                      client_lead_id: str) -> Optional[dict]:
         try:
             await asyncio.sleep(random.randint(5, self.rand_first))
             message_text = await self.process_attachments(chat_id)
 
             if client_lead_id == Config.UNSORTED:
                 await asyncio.sleep(10)
-                resuts = await self.lead_manager.stage_info(entity_id)
-                if resuts == Config.AI_WORKS:
+                results = await self.lead_manager.stage_info(entity_id)
+                if results == Config.AI_WORKS:
                     check_result = await self.check_and_return(talk_id, current_time, entity_id)
                     if check_result:
                         return check_result
                     content_messages = f"{message_text[0]}  {message_text[1]}  {message_text[0]}"
                     print(content_messages)
                     await asyncio.sleep(random.randint(5, self.rand_first))
-                    llm_content = MainLlmService(content_messages, chat_id, entity_id)
-
-                    await llm_content.handle_user_message()
+                    # Переиспользуем MainTread
+                    if chat_id not in self.main_treads:
+                        self.main_treads[chat_id] = MainTread(chat_id, entity_id)
+                    await self.main_treads[chat_id].main(content_messages)
 
                     await self.db.add(talk_id, current_time)
                 return {"status": "success", "message": "User status updated"}
-
 
             self.user_buffers.pop(chat_id, None)
             self.user_timers.pop(chat_id, None)
 
         except Exception as e:
             logger.error(f"Error processing target audience for {chat_id}: {e}")
-
 
     async def start_processing(self, chat_id: str, entity_id: str) -> None:
         try:
@@ -96,11 +98,11 @@ class BufferManager:
             content_messages = f"{message_text[0]}  {message_text[1]}  {message_text[2]}"
             print(content_messages)
             await asyncio.sleep(random.randint(5, self.rand_first))
-            llm_content = MainLlmService(content_messages, chat_id , entity_id)
-          
+            # Переиспользуем MainTread
+            if chat_id not in self.main_treads:
+                self.main_treads[chat_id] = MainTread(chat_id, entity_id)
+            await self.main_treads[chat_id].main(content_messages)
 
-
-            await llm_content.handle_user_message()
             self.user_buffers.pop(chat_id, None)
             self.user_timers.pop(chat_id, None)
         except Exception as e:

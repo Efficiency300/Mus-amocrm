@@ -1,9 +1,9 @@
-
 from utils.logger import setup_logger
 from datetime import datetime
 from status_crm.customer_card_manager import CustomerCardManager
 from status_crm.lead_manager import LeadManager
-from langchain_core.tools import tool
+from vector_store.vector_db import QdrantSearch
+
 
 logger = setup_logger("llm_tools")
 customer_card_manager = CustomerCardManager()
@@ -29,6 +29,7 @@ class Tools:
         :arg name:
         """
         await customer_card_manager.update_field_name(self.lead_ids, name)
+        return name
 
 
     async def get_number(self, number: str) -> None:
@@ -96,13 +97,17 @@ class Tools:
         return current_time
 
 
-    async def send_transport_file(self , files: str) -> None:
-        """используй когда просят отправимть файл с трансортом
-
-        :arg files:
+    async def get_machine_data(self, machine_data: str) -> str:
+        """используй чтобы получить информацию о машинах
         """
 
-        await send_photo(files, self.chat_id)
+        qdrant = QdrantSearch()
+
+
+        results = qdrant.search(machine_data)
+
+        return results
+
 
 
     async def change_client_stage(self , stage_ids: int) -> None:
@@ -111,6 +116,7 @@ class Tools:
         :arg stage_ids: 77777777
         """
         await lead_manager.change_stage(self.lead_ids, stage_ids)
+
 
 
 
